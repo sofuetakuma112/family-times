@@ -1,0 +1,22 @@
+{
+  "name": "@family-times-new/auth",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@family-times-new/db": "workspace:*",
+    "@family-times-new/env": "workspace:*",
+    "better-auth": "catalog:"
+  },
+  "devDependencies": {
+    "@family-times-new/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

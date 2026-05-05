@@ -49,6 +49,8 @@ coverage
 .cache
 tmp
 temp
+local.db
+local.db-*
 
 # docs/
 .claude/

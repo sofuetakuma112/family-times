@@ -10,14 +10,27 @@
       "dotenv": "^17.2.2",
       "zod": "^4.1.13",
       "typescript": "^6",
-      "@types/bun": "^1.3.4"
+      "@types/bun": "^1.3.4",
+      "hono": "^4.8.2",
+      "@orpc/server": "^1.13.14",
+      "@orpc/openapi": "^1.13.14",
+      "@orpc/zod": "^1.13.14",
+      "better-auth": "1.5.5",
+      "@libsql/client": "0.15.15",
+      "drizzle-orm": "^0.45.1"
     }
   },
   "type": "module",
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "check-types": "turbo check-types"
+    "check-types": "turbo check-types",
+    "dev:server": "turbo -F server dev",
+    "db:push": "turbo -F @family-times-new/db db:push",
+    "db:studio": "turbo -F @family-times-new/db db:studio",
+    "db:generate": "turbo -F @family-times-new/db db:generate",
+    "db:migrate": "turbo -F @family-times-new/db db:migrate",
+    "db:local": "turbo -F @family-times-new/db db:local"
   },
   "devDependencies": {
     "@family-times-new/config": "workspace:*",

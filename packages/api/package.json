@@ -1,0 +1,25 @@
+{
+  "name": "@family-times-new/api",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@family-times-new/auth": "workspace:*",
+    "@family-times-new/db": "workspace:*",
+    "@family-times-new/env": "workspace:*",
+    "@orpc/server": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@family-times-new/config": "workspace:*",
+    "hono": "catalog:",
+    "typescript": "catalog:"
+  }
+}
