@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   index,
   integer,
+  real,
   sqliteTable,
   text,
   uniqueIndex,
@@ -113,13 +114,107 @@ export const serverInviteRelations = relations(serverInvite, ({ one }) => ({
   }),
 }));
 
-export const channelRelations = relations(channel, ({ one }) => ({
+export const channelRelations = relations(channel, ({ one, many }) => ({
   server: one(server, {
     fields: [channel.serverId],
     references: [server.id],
   }),
+  messages: many(message),
   creator: one(user, {
     fields: [channel.createdBy],
+    references: [user.id],
+  }),
+}));
+
+export const message = sqliteTable(
+  "message",
+  {
+    id: text("id").primaryKey(),
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => channel.id, { onDelete: "cascade" }),
+    serverId: text("server_id")
+      .notNull()
+      .references(() => server.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    message: text("message"),
+    photoId: text("photo_id"),
+    photoExtension: text("photo_extension"),
+    imageWidth: integer("image_width"),
+    imageHeight: integer("image_height"),
+    latitude: real("latitude"),
+    longitude: real("longitude"),
+    replyToId: text("reply_to_id"),
+    isEdited: integer("is_edited", { mode: "boolean" }).default(false).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [
+    index("message_channelId_createdAt_idx").on(
+      table.channelId,
+      table.createdAt,
+    ),
+    index("message_serverId_idx").on(table.serverId),
+  ],
+);
+
+export const messageRelations = relations(message, ({ one, many }) => ({
+  channel: one(channel, {
+    fields: [message.channelId],
+    references: [channel.id],
+  }),
+  server: one(server, {
+    fields: [message.serverId],
+    references: [server.id],
+  }),
+  author: one(user, {
+    fields: [message.userId],
+    references: [user.id],
+  }),
+  replyTo: one(message, {
+    fields: [message.replyToId],
+    references: [message.id],
+    relationName: "reply",
+  }),
+  replies: many(message, { relationName: "reply" }),
+  reactions: many(reaction),
+}));
+
+export const reaction = sqliteTable(
+  "reaction",
+  {
+    id: text("id").primaryKey(),
+    messageId: text("message_id")
+      .notNull()
+      .references(() => message.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    emoji: text("emoji").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("reaction_unique").on(
+      table.messageId,
+      table.userId,
+      table.emoji,
+    ),
+    index("reaction_messageId_idx").on(table.messageId),
+  ],
+);
+
+export const reactionRelations = relations(reaction, ({ one }) => ({
+  message: one(message, {
+    fields: [reaction.messageId],
+    references: [message.id],
+  }),
+  user: one(user, {
+    fields: [reaction.userId],
     references: [user.id],
   }),
 }));

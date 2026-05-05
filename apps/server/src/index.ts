@@ -11,6 +11,20 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
+import {
+  setMessageDeletedHandler,
+  setMessageSentHandler,
+  setMessageUpdatedHandler,
+  setReactionHandler,
+} from "@family-times-new/api/routers/notifications";
+import {
+  notifyMessageDelete,
+  notifyMessageUpdate,
+  notifyNewMessage,
+  notifyReaction,
+  websocketHandler,
+} from "./ws";
+
 const app = new Hono();
 
 app.use(logger());
@@ -25,6 +39,19 @@ app.use(
 );
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
+
+setMessageSentHandler((channelId, _serverId, messageData) => {
+  notifyNewMessage(channelId, messageData);
+});
+setMessageUpdatedHandler((channelId, messageData) => {
+  notifyMessageUpdate(channelId, messageData);
+});
+setMessageDeletedHandler((channelId, messageId) => {
+  notifyMessageDelete(channelId, messageId);
+});
+setReactionHandler((channelId, messageId, reaction) => {
+  notifyReaction(channelId, messageId, reaction);
+});
 
 export const apiHandler = new OpenAPIHandler(appRouter, {
   plugins: [
@@ -75,9 +102,25 @@ app.get("/", (c) => c.text("OK"));
 
 const server = Bun.serve({
   port: 3002,
-  fetch(req, server) {
+  async fetch(req, server) {
+    const url = new URL(req.url);
+
+    if (url.pathname === "/ws") {
+      const session = await auth.api.getSession({ headers: req.headers });
+      if (!session?.user?.id) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+
+      const upgraded = server.upgrade(req, {
+        data: { userId: session.user.id, channelId: null },
+      });
+      if (upgraded) return undefined;
+      return new Response("WebSocket upgrade failed", { status: 400 });
+    }
+
     return app.fetch(req, { ip: server.requestIP(req) });
   },
+  websocket: websocketHandler,
 });
 
 console.log(`Server running at http://localhost:${server.port}`);
