@@ -17,6 +17,9 @@ import {
   setMessageUpdatedHandler,
   setReactionHandler,
 } from "@family-times-new/api/routers/notifications";
+import { setS3PresignedUrlGetter, setUploadTokenCreator } from "@family-times-new/api/routers/upload";
+import { getDownloadPresignedUrl, getImageKey, getUploadPresignedUrl } from "./lib/storage";
+import { createUploadToken, validateUploadToken } from "./lib/upload-tokens";
 import {
   notifyMessageDelete,
   notifyMessageUpdate,
@@ -40,6 +43,11 @@ app.use(
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
+setUploadTokenCreator(createUploadToken);
+if (env.S3_ENDPOINT) {
+  setS3PresignedUrlGetter(getUploadPresignedUrl);
+}
+
 setMessageSentHandler((channelId, _serverId, messageData) => {
   notifyNewMessage(channelId, messageData);
 });
@@ -51,6 +59,88 @@ setMessageDeletedHandler((channelId, messageId) => {
 });
 setReactionHandler((channelId, messageId, reaction) => {
   notifyReaction(channelId, messageId, reaction);
+});
+
+app.post("/api/upload/presign", async (c) => {
+  const body = await c.req.json();
+  const { photoId, extension, path, contentType } = body;
+  const key = getImageKey(path, photoId, extension);
+
+  if (env.S3_ENDPOINT) {
+    const url = await getUploadPresignedUrl(key, contentType);
+    return c.json({ uploadUrl: url, key });
+  }
+
+  const token = createUploadToken(key);
+  return c.json({
+    uploadUrl: `${env.BETTER_AUTH_URL}/api/upload/local/${key}?token=${token}`,
+    key,
+  });
+});
+
+app.put("/api/upload/local/:path{.+}", async (c) => {
+  const filePath = c.req.param("path");
+  const token = c.req.query("token");
+
+  if (!token || !validateUploadToken(token, filePath)) {
+    return c.json({ error: "Invalid or expired upload token" }, 403);
+  }
+  if (filePath.includes("..") || filePath.startsWith("/")) {
+    return c.json({ error: "Invalid path" }, 400);
+  }
+
+  const ext = filePath.split(".").pop()?.toLowerCase();
+  if (!ext || !["jpg", "jpeg", "png", "gif", "webp", "avif", "heic"].includes(ext)) {
+    return c.json({ error: "Invalid file type" }, 400);
+  }
+
+  const contentLength = parseInt(c.req.header("content-length") || "0", 10);
+  if (contentLength > 10 * 1024 * 1024) {
+    return c.json({ error: "File too large" }, 413);
+  }
+
+  const fullPath = `./uploads/${filePath}`;
+  const dir = fullPath.split("/").slice(0, -1).join("/");
+  const { mkdirSync } = await import("fs");
+  mkdirSync(dir, { recursive: true });
+
+  const body = await c.req.arrayBuffer();
+  if (body.byteLength > 10 * 1024 * 1024) {
+    return c.json({ error: "File too large" }, 413);
+  }
+
+  await Bun.write(fullPath, body);
+  return c.json({ success: true });
+});
+
+app.get("/api/images/:path{.+}", async (c) => {
+  const path = c.req.param("path");
+
+  if (path.includes("..") || path.startsWith("/")) {
+    return c.json({ error: "Invalid path" }, 400);
+  }
+
+  if (env.S3_ENDPOINT) {
+    const url = await getDownloadPresignedUrl(path);
+    return c.redirect(url);
+  }
+
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session?.user?.id) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const file = Bun.file(`./uploads/${path}`);
+  if (await file.exists()) {
+    return new Response(file.stream(), {
+      headers: {
+        "Content-Type": file.type || "image/jpeg",
+        "Cache-Control": "public, max-age=31536000",
+      },
+    });
+  }
+
+  return c.json({ error: "Not found" }, 404);
 });
 
 export const apiHandler = new OpenAPIHandler(appRouter, {

@@ -56,3 +56,4 @@ local.db-*
 .claude/
 
 dogfood-output/
+apps/server/uploads/
