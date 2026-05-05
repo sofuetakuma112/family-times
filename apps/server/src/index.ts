@@ -18,6 +18,7 @@ import {
   setReactionHandler,
 } from "@family-times-new/api/routers/notifications";
 import { setS3PresignedUrlGetter, setUploadTokenCreator } from "@family-times-new/api/routers/upload";
+import { getVapidPublicKey, sendPushToServerMembers } from "./lib/push";
 import { getDownloadPresignedUrl, getImageKey, getUploadPresignedUrl } from "./lib/storage";
 import { createUploadToken, validateUploadToken } from "./lib/upload-tokens";
 import {
@@ -43,13 +44,27 @@ app.use(
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
+app.get("/api/push/vapid-key", (c) => {
+  const key = getVapidPublicKey();
+  if (!key) {
+    return c.json({ error: "Push not configured" }, 500);
+  }
+  return c.json({ publicKey: key });
+});
+
 setUploadTokenCreator(createUploadToken);
 if (env.S3_ENDPOINT) {
   setS3PresignedUrlGetter(getUploadPresignedUrl);
 }
 
-setMessageSentHandler((channelId, _serverId, messageData) => {
+setMessageSentHandler((channelId, serverId, messageData) => {
   notifyNewMessage(channelId, messageData);
+  sendPushToServerMembers(serverId, messageData.userId, {
+    title: messageData.author?.name || "New message",
+    body: messageData.message || "[image]",
+    tag: `msg-${channelId}`,
+    data: { channelId, serverId },
+  });
 });
 setMessageUpdatedHandler((channelId, messageData) => {
   notifyMessageUpdate(channelId, messageData);
