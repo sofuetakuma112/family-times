@@ -7,6 +7,7 @@ import { messagesRouter } from "./messages";
 import { pushRouter } from "./push";
 import { serversRouter } from "./servers";
 import { uploadRouter } from "./upload";
+import { usersRouter } from "./users";
 
 export const appRouter = {
   healthCheck: publicProcedure.handler(() => {
@@ -18,6 +19,7 @@ export const appRouter = {
   messages: messagesRouter,
   upload: uploadRouter,
   push: pushRouter,
+  users: usersRouter,
 };
 
 export type AppRouter = typeof appRouter;
